@@ -1,0 +1,15 @@
+# TTS Pipeline default configuration
+raw_dir: raw
+output_dir: dataset
+sample_rate: 22050
+min_segment_dur: 2.0
+max_segment_dur: 20.0
+min_text_len: 10
+max_text_len: 500
+merge_gap: 0.5
+fragment_threshold: 0.3
+train_split: 0.9
+youtube_caption_langs:
+  - vi
+max_videos_per_channel: 5
+ffmpeg_path: ffmpeg

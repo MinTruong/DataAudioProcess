@@ -1,0 +1,32 @@
+# ─── Data ──────────────────────────────────────────
+dataset/                    # Generated dataset (Parquet + WAV)
+raw/                        # Raw downloaded YouTube audio
+sample_dataset/             # Sample dataset copy
+*.wav
+
+# ─── Logs & debug ──────────────────────────────────
+vtt_debug.txt
+dataset_check.txt
+dataset_preview.txt
+*.log
+*.srt                       # Downloaded captions
+
+# ─── Python ────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+env/
+
+# ─── IDE & OS ──────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
