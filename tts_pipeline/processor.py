@@ -23,6 +23,15 @@ def _has_music_noise(text: str) -> bool:
     return False
 
 
+def _strip_music_noise(text: str) -> str:
+    """Remove music/noise/copyright artifacts from text, preserving remaining content."""
+    result = text
+    for pattern in _MUSIC_PATTERNS:
+        result = result.replace(pattern, "")
+    result = result.strip()
+    return result
+
+
 def segment_by_content(
     segments: list[dict],
     min_dur: float = 5.0,
@@ -57,8 +66,12 @@ def segment_by_content(
 
         for part in parts:
             part = part.strip()
-            if not part or _has_music_noise(part):
+            if not part:
                 continue
+            if _has_music_noise(part):
+                part = _strip_music_noise(part)
+                if not part:
+                    continue
             part_dur = len(part) * char_ratio
             atoms.append({
                 "start": cur_start,
