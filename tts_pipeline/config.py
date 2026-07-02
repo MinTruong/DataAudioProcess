@@ -14,7 +14,7 @@ class Settings(BaseModel):
 
     # Audio parameters
     sample_rate: int = Field(default=22050, ge=8000, le=48000)
-    min_segment_dur: float = Field(default=2.0, ge=1.0, le=10.0)
+    min_segment_dur: float = Field(default=5.0, ge=2.0, le=20.0)
     max_segment_dur: float = Field(default=20.0, ge=5.0, le=60.0)
 
     # Text filtering
