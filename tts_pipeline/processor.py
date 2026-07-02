@@ -119,22 +119,28 @@ def dedup_consecutive_text(segments: list[dict]) -> list[dict]:
             curr_lower = text.lower()
 
             # Find longest suffix of prev found near the start of current
+            # Iterate all match positions to find a valid word-boundary match
             limit = min(len(prev_words), 15)
             for n in range(limit, 0, -1):
                 prev_suffix = " ".join(prev_words[-n:])
-                pos = curr_lower.find(prev_suffix.lower())
-                if pos == -1:
-                    continue
-                # Must be at word boundary
-                if pos > 0 and not curr_lower[pos - 1].isspace():
-                    continue
-                # Strip from start of current through the end of the overlap
-                text = text[pos + len(prev_suffix):].strip()
-                text = text.lstrip(",").strip()
-                if not text:
-                    continue
-                text = text[0].upper() + text[1:]
-                break
+                search_start = 0
+                found = False
+                while True:
+                    pos = curr_lower.find(prev_suffix.lower(), search_start)
+                    if pos == -1:
+                        break  # no more matches at this n level
+                    if pos == 0 or curr_lower[pos - 1].isspace():
+                        # Valid word-boundary match — use it
+                        new_text = text[pos + len(prev_suffix):].strip()
+                        new_text = new_text.lstrip(",").strip()
+                        if new_text:
+                            text = new_text[0].upper() + new_text[1:]
+                            found = True
+                        break  # either accepted or empty — try shorter suffix
+                    search_start = pos + 1  # try next position
+                if found:
+                    break  # valid match found and processed
+                # else continue to shorter suffix
 
         result.append({**seg, "text": text})
 
