@@ -5,7 +5,12 @@ import argparse
 from tts_pipeline.config import Settings
 from tts_pipeline.downloader import download_video_and_subs, get_channel_videos
 from tts_pipeline.parser import parse_vtt_full, merge_cues
-from tts_pipeline.processor import clean_text, dedup_consecutive_text, split_long_segments
+from tts_pipeline.processor import (
+    clean_text,
+    dedup_consecutive_text,
+    fix_time_overlaps,
+    segment_by_content,
+)
 from tts_pipeline.exporter import export_dataset
 
 
@@ -41,15 +46,22 @@ def run_pipeline(
         seg["text"] = clean_text(seg["text"])
 
     merged = dedup_consecutive_text(merged)
-    merged = [seg for seg in merged if seg["text"] and len(seg["text"]) >= s.min_text_len]
     print(f"   After dedup: {len(merged)}")
 
-    for seg in merged[:3]:
-        dur = seg["end"] - seg["start"]
-        print(f"   [{seg['start']:.1f}s - {seg['end']:.1f}s] ({dur:.1f}s) {seg['text'][:60]}")
+    merged = fix_time_overlaps(merged)
+    print(f"   After fix_time: {len(merged)}")
 
-    merged = split_long_segments(merged, s.max_segment_dur, s.min_segment_dur)
-    print(f"   After split: {len(merged)}")
+    merged = segment_by_content(merged, s.min_segment_dur, s.max_segment_dur)
+    print(f"   After segment_by_content: {len(merged)}")
+
+    merged = fix_time_overlaps(merged)
+    print(f"   After fix_time (2nd pass): {len(merged)}")
+
+    merged = [seg for seg in merged
+              if seg["text"]
+              and len(seg["text"]) >= s.min_text_len
+              and (seg["end"] - seg["start"]) >= s.min_segment_dur]
+    print(f"   After filter: {len(merged)}")
 
     # Step 3+4: Export
     print("\n[Step 3+4] Cut audio & export dataset...")
