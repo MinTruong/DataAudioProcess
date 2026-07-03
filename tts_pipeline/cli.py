@@ -12,6 +12,7 @@ from tts_pipeline.processor import (
     segment_by_content,
 )
 from tts_pipeline.exporter import export_dataset
+from tts_pipeline.punctuator import restore_punctuation
 
 
 def run_pipeline(
@@ -44,6 +45,15 @@ def run_pipeline(
 
     for seg in merged:
         seg["text"] = clean_text(seg["text"])
+
+    # Punctuation restoration (only if any segment lacks .!?)
+    no_punct = [seg for seg in merged
+                if seg["text"] and seg["text"][-1] not in ".!?"]
+    if no_punct:
+        for seg in merged:
+            if seg["text"]:
+                seg["text"] = restore_punctuation(seg["text"])
+    print(f"   After punctuation: {len(merged)}")
 
     merged = dedup_consecutive_text(merged)
     print(f"   After dedup: {len(merged)}")
