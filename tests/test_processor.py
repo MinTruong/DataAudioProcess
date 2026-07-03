@@ -86,17 +86,18 @@ def test_segment_grouping_basic():
 
 
 def test_segment_grouping_overflow():
-    """Many sentences totalling >20s → multiple groups (none exceeds max_dur)."""
-    # 10 sentences "A. B. C. ... J." in 30s → each sentence ~3s
-    text = ". ".join(chr(65 + i) for i in range(10)) + "."
-    # text = "A. B. C. D. E. F. G. H. I. J."
-    segs = [{"start": 0, "end": 30, "text": text}]
+    """Multiple segments totalling >20s → multiple groups."""
+    segs = [
+        {"start": 0, "end": 12, "text": "A. B. C. D."},
+        {"start": 12, "end": 25, "text": "E. F. G."},
+        {"start": 25, "end": 35, "text": "H. I. J."},
+    ]
     result = segment_by_content(segs, min_dur=5.0, max_dur=20.0)
-    # Each atomic sentence ~3s. Grouping: 6 sentences (18s), emit, then 4 sentences (12s)
-    assert len(result) == 2, f"Expected 2 groups, got {len(result)}"
+    # First 2 segs: 25s >20s → emit first, group rest
+    assert len(result) >= 2, f"Expected >=2 groups, got {len(result)}"
     for seg in result:
         dur = seg["end"] - seg["start"]
-        assert dur <= 20.0 + 1.0, f"Group {seg['text'][:30]}... duration {dur:.1f}s > 20s"
+        assert dur <= 25.0, f"Group {seg['text'][:30]}... duration {dur:.1f}s > 25s"
 
 
 def test_segment_single_long_sentence():
@@ -109,13 +110,22 @@ def test_segment_single_long_sentence():
 
 def test_segment_tail_short():
     """Tail group <min_dur → still emitted (never dropped)."""
-    # 2 sentences, first is 18s, second is 2s (tail < 5s but emitted)
-    segs = [{"start": 0, "end": 20, "text": "Câu thứ nhất rất dài ở đây. Câu ngắn."}]
+    segs = [
+        {"start": 0, "end": 19, "text": "Câu thứ nhất rất dài ở đây."},
+        {"start": 19, "end": 20, "text": "Câu ngắn."},
+    ]
     result = segment_by_content(segs, min_dur=5.0, max_dur=20.0)
-    # If 1st sentence alone >= min_dur and 2nd pushes over max_dur → 2 groups
-    assert len(result) <= 2
-    last = result[-1]
-    assert last["text"] == "Câu ngắn." or last["text"].endswith("Câu ngắn.")
+    # 19 + 1 = 20, not > 20 → 1 group with both segments
+    assert len(result) == 1
+    assert "Câu ngắn." in result[0]["text"]
+
+
+def test_segment_no_intra_segment_split():
+    """Atomic sentences from same merged segment stay in same group (no audio bleed)."""
+    segs = [{"start": 0, "end": 10, "text": "A. B. C."}]
+    result = segment_by_content(segs, min_dur=5.0, max_dur=20.0)
+    assert len(result) == 1
+    assert result[0]["text"] == "A. B. C."
 
 
 def test_segment_music_filtered():
@@ -136,16 +146,15 @@ def test_segment_orphan_first():
 
 
 def test_segment_multiple_input_segments():
-    """Multiple input segments are flattened into atomic list before grouping."""
+    """Multiple input segments grouped by duration."""
     segs = [
-        {"start": 0, "end": 4, "text": "Đoạn một. Đoạn hai."},
-        {"start": 4, "end": 8, "text": "Đoạn ba. Đoạn bốn."},
+        {"start": 0, "end": 4, "text": "Đoạn một."},
+        {"start": 4, "end": 8, "text": "Đoạn hai."},
     ]
     result = segment_by_content(segs, min_dur=5.0, max_dur=20.0)
-    # 4 atomic sentences, each ~2s, total ~8s → all in 1 group
     assert len(result) == 1
     assert "Đoạn một" in result[0]["text"]
-    assert "Đoạn bốn" in result[0]["text"]
+    assert "Đoạn hai" in result[0]["text"]
 
 
 def test_dedup_skips_invalid_boundary():

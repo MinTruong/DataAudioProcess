@@ -32,84 +32,67 @@ def _strip_music_noise(text: str) -> str:
     return result
 
 
+def _strip_music_noise_from_segment(seg: dict) -> dict | None:
+    """Return segment with music/noise stripped, or None if entirely removed."""
+    if not seg["text"]:
+        return None
+    if not _has_music_noise(seg["text"]):
+        return seg
+    cleaned = _strip_music_noise(seg["text"])
+    if not cleaned:
+        return None
+    return {**seg, "text": cleaned}
+
+
 def segment_by_content(
     segments: list[dict],
     min_dur: float = 5.0,
     max_dur: float = 20.0,
+    **kwargs,
 ) -> list[dict]:
-    """Group atomic sentences into 5-20s segments with complete semantic units.
+    """Group merged segments into 5-20s groups by duration.
 
-    Phase 1 -- Split each segment into atomic sentences by punctuation, prorate
-    time by character ratio. Filter out music/noise artifacts.
+    Each input segment is treated as an atomic unit (no intra-segment
+    splitting via punctuation/character-ratio). This prevents audio bleed
+    caused by YouTube VTT cue overlap when prorating time per sentence.
 
-    Phase 2 -- Greedy left-to-right grouping:
-    - If group duration < min_dur: append candidate unconditionally
-    - If adding candidate would exceed max_dur: emit current group, start new
-    - Otherwise: append candidate
-    Tail group is always emitted (no backward merging into previous group).
+    Music/noise artifacts are stripped per segment (not dropped entirely).
+    Tail group is always emitted even if short.
     """
-    # Phase 1: Extract atomic sentences with prorated time
-    atoms: list[dict] = []
+    # Filter/strip music/noise
+    clean: list[dict] = []
     for seg in segments:
-        dur = seg["end"] - seg["start"]
-        text = seg["text"]
-        if not text.strip():
-            continue
-
-        parts = re.split(r"(?<=[.!?])\s+", text)
-        total_chars = sum(len(p) for p in parts)
-        if total_chars == 0:
-            continue
-
-        char_ratio = dur / total_chars
-        cur_start = seg["start"]
-
-        for part in parts:
-            part = part.strip()
-            if not part:
-                continue
-            if _has_music_noise(part):
-                part = _strip_music_noise(part)
-                if not part:
-                    continue
-            part_dur = len(part) * char_ratio
-            atoms.append({
-                "start": cur_start,
-                "end": cur_start + part_dur,
-                "text": part,
-            })
-            cur_start += part_dur
-
-    # Phase 2: Greedy duration-based grouping
-    if not atoms:
+        result = _strip_music_noise_from_segment(seg)
+        if result is not None:
+            clean.append(result)
+    if not clean:
         return []
 
+    # Greedy duration-based grouping on whole segments
     groups: list[list[dict]] = []
-    current = [atoms[0]]
+    current = [clean[0]]
 
-    for atom in atoms[1:]:
+    for seg in clean[1:]:
         group_dur = current[-1]["end"] - current[0]["start"]
-        add_dur = atom["end"] - atom["start"]
+        seg_dur = seg["end"] - seg["start"]
 
         if group_dur < min_dur:
-            current.append(atom)          # must append -- no orphan
-        elif group_dur + add_dur > max_dur:
-            groups.append(current)         # emit, start fresh
-            current = [atom]
+            current.append(seg)
+        elif group_dur + seg_dur > max_dur and group_dur >= min_dur:
+            groups.append(current)
+            current = [seg]
         else:
-            current.append(atom)           # room to grow
+            current.append(seg)
 
-    groups.append(current)                 # always emit tail
+    groups.append(current)  # always emit tail
 
     output = []
     for group in groups:
-        joined = " ".join(a["text"] for a in group)
-        cleaned = clean_text(joined)
-        output.append({
-            "start": group[0]["start"],
-            "end": group[-1]["end"],
-            "text": cleaned,
-        })
+        texts = [s["text"] for s in group]
+        cleaned = clean_text(" ".join(texts))
+        start = group[0]["start"]
+        end = group[-1]["end"]
+        output.append({"start": start, "end": end, "text": cleaned})
 
     return output
 
