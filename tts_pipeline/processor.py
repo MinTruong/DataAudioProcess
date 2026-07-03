@@ -92,7 +92,13 @@ def segment_by_content(
         cleaned = clean_text(" ".join(texts))
         start = group[0]["start"]
         end = group[-1]["end"]
-        output.append({"start": start, "end": end, "text": cleaned})
+        # Trim 0.3s from end + 0.15s from start to avoid audio bleed
+        # from VTT cue overlap at segment boundaries
+        output.append({
+            "start": min(end - 0.3, start + 0.15),
+            "end": max(start + 0.5, end - 0.3),
+            "text": cleaned,
+        })
 
     return output
 

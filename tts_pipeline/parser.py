@@ -67,17 +67,21 @@ def parse_vtt_full(vtt_path: str | Path) -> list[dict]:
 
 
 def merge_cues(cues: list[dict], settings: Settings | None = None) -> list[dict]:
-    """Merge YouTube auto-caption fragments into complete segments.
+    """Merge YouTube auto-caption fragments and split sentences into clean segments.
 
-    YouTube generates 3 cues per utterance: word-level (long), plain fragment
-    (0.01s), and the next utterance start. This merges them into clean segments.
+    YouTube VTT structure per utterance:
+      word-level cue A (partial, 1-2s)
+      plain fragment 0.01s (full text of A)
+      word-level cue A' (partial, continuation of A)
+      plain fragment 0.01s (full text of A + A')
+      word-level cue B (partial, start of next utterance)
+      ...
 
-    Args:
-        cues: Raw cues from parse_vtt_full()
-        settings: Pipeline Settings (controls merge_gap, fragment_threshold)
-
-    Returns:
-        list of {start: float, end: float, text: str} with markup stripped
+    This function:
+    - Fragments (< 0.3s) ONLY extend time, NEVER overwrite text
+    - Word-level cues that continue the same sentence are merged (text combined)
+    - A new segment starts when the previous text ends with . ! ?
+    - The longest suffix overlap between consecutive cues is deduplicated
     """
     s = settings or Settings()
     if not cues:
@@ -93,46 +97,88 @@ def merge_cues(cues: list[dict], settings: Settings | None = None) -> list[dict]
         cue = cues[i]
         dur = cue["end"] - cue["start"]
 
-        # Fragment (< threshold): merge time into previous segment
-        if dur < s.fragment_threshold and merged:
-            merged[-1]["end"] = max(merged[-1]["end"], cue["end"])
-            if cue["text"] and len(cue["text"]) > len(merged[-1]["text"]):
-                merged[-1]["text"] = cue["text"]
+        # Fragment (< threshold): extend last segment's end time ONLY
+        if dur < s.fragment_threshold:
+            if merged:
+                merged[-1]["end"] = max(merged[-1]["end"], cue["end"])
             i += 1
             continue
 
-        combined_text = cue["text"]
-        combined_end = cue["end"]
-        j = i + 1
+        # Word-level cue
+        curr_text = cue["text"]
+        if not curr_text:
+            i += 1
+            continue
 
-        while j < len(cues):
-            next_dur = cues[j]["end"] - cues[j]["start"]
-            next_text = cues[j]["text"]
+        if not merged:
+            merged.append({"start": cue["start"], "end": cue["end"], "text": curr_text})
+            i += 1
+            continue
 
-            # Skip fragments
-            if next_dur < s.fragment_threshold:
-                if cues[j]["end"] > combined_end:
-                    combined_end = cues[j]["end"]
-                if next_text and len(next_text) > len(combined_text):
-                    combined_text = next_text
-                j += 1
+        prev = merged[-1]
+        prev_text = prev["text"]
+        prev_lower = prev_text.lower()
+        curr_lower = curr_text.lower()
+
+        # Case 1: current text extends prev (more complete version)
+        if curr_lower.startswith(prev_lower) and len(curr_text) > len(prev_text):
+            prev["text"] = curr_text
+            prev["end"] = cue["end"]
+            i += 1
+            continue
+
+        # Case 2: prev fully contains current → skip (just extend time)
+        if prev_lower.startswith(curr_lower) and len(prev_text) >= len(curr_text):
+            prev["end"] = max(prev["end"], cue["end"])
+            i += 1
+            continue
+
+        # Case 3: prev ends with sentence punctuation
+        prev_ends = prev_text.rstrip()[-1] if prev_text.rstrip() else ""
+        if prev_ends in ".!?":
+            # If current text is purely a repeat of prev's tail → skip
+            prev_words = prev_text.split()
+            pure_overlap = False
+            for n in range(min(len(prev_words), 20), 0, -1):
+                suffix = " ".join(prev_words[-n:]).lower()
+                if curr_lower.startswith(suffix):
+                    stripped = curr_text[len(suffix):].strip().lstrip(",").strip()
+                    if not stripped:
+                        pure_overlap = True
+                    break
+
+            if pure_overlap:
+                prev["end"] = cue["end"]
+                i += 1
                 continue
 
-            gap = cues[j]["start"] - combined_end
-            if gap > s.merge_gap:
+            # New segment — dedup in processor.py handles residual overlap
+            merged.append({"start": cue["start"], "end": cue["end"], "text": curr_text})
+            i += 1
+            continue
+
+        # Case 4: no sentence punctuation → merge into current sentence
+        # (uppercase in Vietnamese can be a proper noun mid-sentence)
+
+        # Case 5: continuation of same sentence → combine
+        # Find longest suffix overlap between prev and current to avoid duplication
+        prev_words = prev_text.split()
+        overlap_n = 0
+        limit = min(len(prev_words), 20)
+        for n in range(limit, 0, -1):
+            suffix = " ".join(prev_words[-n:]).lower()
+            if curr_lower.startswith(suffix):
+                overlap_n = n
                 break
 
-            if next_text.startswith(combined_text) and len(next_text) > len(combined_text):
-                combined_text = next_text
-                combined_end = cues[j]["end"]
-                j += 1
-            elif next_text == combined_text:
-                combined_end = cues[j]["end"]
-                j += 1
-            else:
-                break
+        rest = curr_text
+        if overlap_n > 0:
+            overlap = " ".join(prev_words[-overlap_n:])
+            rest = curr_text[len(overlap):].strip()
 
-        merged.append({"start": cue["start"], "end": combined_end, "text": combined_text})
-        i = j
+        spacer = " " if rest else ""
+        prev["text"] = prev_text + spacer + rest
+        prev["end"] = cue["end"]
+        i += 1
 
     return merged

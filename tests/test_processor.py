@@ -82,7 +82,7 @@ def test_segment_grouping_basic():
     result = segment_by_content(segs, min_dur=5.0, max_dur=20.0)
     assert len(result) == 1
     assert result[0]["text"] == "A. B. C."
-    assert abs(result[0]["end"] - result[0]["start"] - 6.0) < 0.01
+    assert abs(result[0]["end"] - result[0]["start"] - 5.55) < 0.01
 
 
 def test_segment_grouping_overflow():
