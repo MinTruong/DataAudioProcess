@@ -5,7 +5,7 @@ Tự động tải audio book từ YouTube, cắt thành từng đoạn ngắn, 
 ## Tính năng
 
 - 🎬 **Tải YouTube** — audio + auto-caption tiếng Việt, tự động convert WAV (22050Hz, mono)
-- ✂️ **Cắt segment thông minh** — gộp fragment YouTube, xoá overlap, chia câu dài
+- ✂️ **Cắt segment thông minh** — gộp fragment YouTube, xoá overlap, phục hồi dấu câu, tách clause, lọc đuôi lặp
 - 📊 **Xuất dataset chuẩn** — Parquet + WAV files, format tương thích HuggingFace datasets
 - 🔀 **Train/test split** — mặc định 90/10
 - ⚙️ **Config bằng YAML** — không cần sửa code
@@ -146,38 +146,65 @@ YouTube URL
 └──────┬───────┘
        │
        ▼
-┌──────────────┐
-│   parser     │  Parse VTT → merge fragment → strip markup
-└──────┬───────┘
+┌───────────────────┐
+│  parser + merge   │  parse_vtt_full() → merge_cues() → force-break text dài
+│  (export _merged  │  Xuất VTT file để inspect
+│   .vtt)           │
+└──────┬────────────┘
+       │
+       ▼
+┌────────────────────────────┐
+│  punctuator (qua VTT file) │  restore_punctuation() + _split_by_clause()
+│                            │  Cho segments thiếu dấu câu .
+│                            │  ! ? → split + prorate time nội bộ
+│                            │  Lọc đuôi ngắn lặp (VTT overlap artifact)
+└──────┬─────────────────────┘
+       │
+       ▼
+┌──────────────────┐
+│ dedup_consecutive │  Xoá overlap text giữa segment kế
+│ _text             │  (suffix ở MỌI vị trí, max 15 từ)
+└──────┬───────────┘
+       │
+       ▼
+┌──────────────────┐
+│ fix_time_overlaps │  Đẩy start time nếu 2 segment chồng lấn
+└──────┬───────────┘
+       │
+       ▼
+┌──────────────────┐
+│ segment_by_       │  NHÓM atomic segments thành group 5-20s
+│ content           │  (greedy, boundary trim 0.15s+0.3s)
+└──────┬───────────┘
        │
        ▼
 ┌──────────────┐
-│  processor   │  Clean text → dedup overlap → split segment dài
-└──────┬───────┘
-       │
-       ▼
-┌──────────────┐
-│  exporter    │  ffmpeg cut → Parquet → train/test split
+│  exporter    │  ffmpeg cut → WAV + Parquet (train/test split)
 └──────────────┘
 ```
 
-Project gồm 6 module trong `tts_pipeline/`:
+Project gồm 7 module trong `tts_pipeline/`:
 
 | Module | Chức năng |
 |--------|-----------|
 | `config.py` | Pydantic Settings + YAML loading + ffmpeg validation |
 | `downloader.py` | Tải audio + caption từ YouTube qua yt-dlp |
-| `parser.py` | Parse VTT, gộp cue fragment, strip markup |
-| `processor.py` | Làm sạch text, xoá overlap, chia segment dài |
+| `parser.py` | Parse VTT + merge_cues + VTT file I/O |
+| `punctuator.py` | Phục hồi dấu câu, clause splitting, lọc đuôi lặp |
+| `processor.py` | Làm sạch text, dedup, fix_time, segment_by_content |
 | `exporter.py` | Cắt audio bằng ffmpeg, xuất Parquet, train/test split |
-| `cli.py` | CLI entry point (argparse) |
+| `cli.py` | CLI entry point, orchestrate pipeline |
 
 ## Xử lý chất lượng
 
-- **Fragment merge:** YouTube auto-caption sinh nhiều cue cho cùng một đoạn text (word-level → plain fragment → text mở rộng). Pipeline tự động gộp và giữ text đầy đủ nhất. Cue < 0.3s được coi là fragment chuyển tiếp và bị bỏ qua.
-- **Overlap dedup:** Đoạn kế tiếp thường lặp lại 1-3 từ cuối của đoạn trước. Bộ processor tự động cắt bỏ phần overlap.
-- **Long segment split:** Segment > 20s được chia nhỏ bằng dấu câu (`.` → `,`), thời gian phân bố đều theo độ dài chữ.
-- **Audio validation:** WAV mono 22050Hz, duration 2-20s, text 10-500 ký tự.
+- **Fragment merge:** YouTube auto-caption sinh nhiều cue cho cùng một đoạn text (word-level → plain fragment → text mở rộng). Pipeline tự động gộp và giữ text đầy đủ nhất. Cue < 0.3s được coi là fragment chuyển tiếp và chỉ extend time, không ghi đè text.
+- **Force-break text dài:** Nếu merged segment > 250 ký tự không có dấu câu, tự động ngắt segment mới (force-break trong merge_cues).
+- **Phục hồi dấu câu:** Segments thiếu `. ! ?` được xử lý qua pipeline VTT file — `_split_by_clause()` dùng discourse markers (`nhưng`, `cho nên`, `rồi thì`...) để tách text flow không dấu câu, phục hồi punctuation bằng heuristics (từ hỏi → ?, cảm thán → !, còn lại → .).
+- **Lọc đuôi lặp:** Segment <= 3 từ trùng với đuôi segment trước (VTT overlap artifact) bị loại bỏ.
+- **Overlap dedup:** Đoạn kế tiếp thường lặp lại 1-15 từ cuối của đoạn trước (`dedup_consecutive_text` tự động cắt bỏ).
+- **Segment grouping:** Các merged segments được nhóm greedy 5-20s, mỗi segment là atomic unit (không split nội bộ để tránh audio-text mismatch từ character-ratio proration).
+- **Boundary trim:** 0.15s đầu + 0.3s cuối mỗi group để tránh VTT overlap artifact.
+- **Audio validation:** WAV mono 22050Hz 16-bit, duration 5-20s, text >= 10 ký tự.
 
 ## Test
 
@@ -187,13 +214,21 @@ python -m pytest tests/ -v
 
 ## Kết quả thử nghiệm
 
-Với 1 video ~42 phút từ kênh `@backaudio`:
+Với video `iUGFXuxHNAA` (~42 phút):
 
-- Raw VTT cues: ~4.000
-- Sau merge + dedup: ~1.100 segment
-- **Xuất được: 1.059 segments**
-- **Tổng thời lượng: 44.8 phút**
-- **Dung lượng: 113 MB WAV**
+- Raw VTT cues: ~2700
+- Sau merge_cues: 174 segments
+- Sau punctuation + dedup + segment_by_content: **198 segments**
+- **0 segments under 5s, 0 over 20s, 0 missing punctuation**
+- Mean duration: 15.7s
+
+Với video `T_zgDuLSIYU` (Tu Tiên Lạ Lắm tập 1, ~45 phút, VTT không dấu câu):
+
+- Raw VTT cues: ~2700
+- Sau merge_cues: 217 segments
+- Sau punctuation (clause split) + dedup + segment_by_content: **222 segments**
+- **0 segments under 5s, 0 over 20s, 0 missing punctuation**
+- Mean duration: 13.9s
 
 ## Giấy phép
 
