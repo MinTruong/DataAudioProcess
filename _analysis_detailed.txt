@@ -1,0 +1,68 @@
+Raw VTT: 2702 cues total
+  Word-level (>=0.3s): 1353
+  Fragments (<0.3s): 1349
+  Ratio fragments/total: 50%
+
+After merge: 174 segments
+  Duration: min=1.2s max=79.7s mean=18.5s
+  Text len: min=11 max=1311 mean=319
+  Truncated (no period, end lowercase): 31
+    [124.9-148.4] ...ràng Bắc Phương Ma Vực nguy hiểm tới cái
+    [277.9-305.4] ...ú, như vậy có thể sinh ra cảm ứng với Đế
+    [482.0-507.3] ...n trong vòng sáy tán mát ra ngoài, là đế
+    [524.1-544.2] ... mảnh tối đen thu thù lùi, trước mặt của
+    [544.2-567.9] ...thấy, lực lượng của những quan ti này ôn
+    [804.4-828.4] ...phó được, nhưng chỉ sợ nơi này không chỉ
+    [828.4-844.1] ...i mảnh thanh quang lang tràng thanh đằng
+    [1123.0-1146.8] ...ượt qua Lôi Trì nửa bước, vì vậy nó càng
+    [1253.4-1267.6] ...inh diệt, kiếm ý không chỗ nào không có,
+    [1281.0-1302.4] ...ở cái tầng diện đại đậu mà công phạt căn
+
+After dedup: 174 segments
+After fix_time: 174 segments
+After segment_by_content: 147 segments
+After fix_time (2nd pass): 147 segments
+After filter: 147 segments
+
+======================================================================
+DETAILED ISSUE ANALYSIS
+======================================================================
+
+1. TEXT OVERLAPS: 0 pairs
+
+2. TRUNCATED (no sentence ending): 31 segments
+  [125.0-148.1] Y lục dục thiên mà. La lạc ma quân chậm rãi thốt ra bốn chữ này. Khác với cái loại thiên ma quyến thuộc như là Cự Hà Ma 
+  [278.1-305.1] Theo suy đoán của bọn họ, không gian nơi động thiên bí cảnh kia, hắn đã gần tới cực hạn, nên Đế Hồng Ma Cấm mới xé trách
+  [477.2-507.0] Lực lượng chú ấn dao động theo thanh âm này, bao phủ không gian quanh hai người. Đúng lúc này, cái luồng ba động kia lại
+  [524.2-543.9] Liệu Mãn, nhào vô đi. Tần tan thần sắc trầm xuống, không còn chần chừ nữa, lập tức lé thân nhảy vào vòng sấy. La lạc ma 
+  [544.4-567.6] Bọn họ lại là một cái cánh cự môn. Cánh cửa này đen như mực nhưng lại mang tới cho Tần Tan và La Lạc Ma quân một cái cảm
+  [804.5-828.1] Theo ma ý kéo tới, còn có ác niệm và tham niệm mãnh liệt, đối với Lục Dục Thiên Ma, hai tu sĩ hợp thể kỳ như là bọn họ c
+  [828.5-843.8] Có một đầu lục dục thiên ma. Quay điểm s tần tăng lập tức tới sức ra Thái Âm linh kiếm, kiếm vực triển khai chân thân độ
+  [1123.2-1146.5] Những ma ảnh này thoạt nhìn giống như là hình người, nhưng mà thân thể lại như một cái đoàn khối tụ thành, không thấy rõ
+  [1253.6-1267.3] Trước đó khi đại chiến với thần sát ma quân và tri chu ma trùng nhìn qua là nhật nguyệt sông kiếm đại triển thần uy, như
+  [1281.2-1302.1] Khi chiến đấu tới lúc kịch liệt nhất, pháp vật của hai bên chẳng khác nào khóa chặt vào nhau. Trước khi phân thắng bậy, 
+  [1316.8-1334.1] Mà lúc này đã có càng nhiều ma ảnh bị kiếm quan xyên thủng cái đầu, bên trên chiến trường có bao nhiêu ma ảnh, liền có b
+  [1413.4-1452.4] Chớp mắt, ma ảnh lần nữa lại sinh. Tầng tầng lớp lớp ma ảnh dường như là còn dề đặt hơn lúc trước. Những ma ảnh này khi 
+  [1564.5-1580.9] Dưới sự che chở của pháp vật, lôi thú chiến vệ lại bắt đầu đại khai sát giới. Một khi bị Thiên Ma Vọng cảnh vây khốn, tu
+  [1581.3-1625.3] Phạt, chỉ cần bọn họ đồ sát hết thảy thiên ma khác, vọng cảnh này tự khắc sẽ là tan rã. Cũng chính vì nơi đây có hai ngư
+  [1625.8-1639.8] Thể triệt để thanh trừ thiên ma thì lại vô cùng hiếm hôi. Mà lúc này ma ý ngập trời đã là ầm ầm ập tới, sắc mặt hai ngườ
+
+3. SHORT SEGMENTS
+  Duration < 2.0s: 0
+  Text < 10 chars: 0
+
+4. VERY LONG TEXT (>200 chars): 115
+  [1.7-20.9] len=285 Chào mừng tất cả các đạo hữu đã quay trở lại với kênh Bách Audio Vấn Đậu Tông. Thì tiếp tục ngày hôm nay Bách xin gửi đến các đạo hữu tập 640 của bộ t...
+  [21.3-42.8] len=277 Ở cuối tập trước thì Tần Tang và La Lạc Ma Quân đã phát hiện ra một cái chỗ là động thiên bí cảnh do địa cực ma cung mở. Thì đây là một cái đại phái r...
+  [43.3-87.4] len=635 Thì nơi này có liên quan tới một mạch là Đế Thiên Tử của Địa Cực Ma Cung. Bọn họ tìm được Đế Hồng Ma Cấm thì đang tìm cách để mà tìm được cái cửa vào ...
+  [87.9-107.8] len=266 Và dạo này thì bách đi làm rồi cho nên là một ngày đọc được là một vài chương thôi rồi nhiều ngày thì mới được một tập. Cho nên là chuyện ra hơi chậm....
+  [125.0-148.1] len=353 Y lục dục thiên mà. La lạc ma quân chậm rãi thốt ra bốn chữ này. Khác với cái loại thiên ma quyến thuộc như là Cự Hà Ma Trùng, đây là một cái đầu lục ...
+  [148.6-164.8] len=215 Mức nào, mới đi được có bao lâu đã liên tiếp gặp phải hai cái đầu ma trùng đẳng cấp ma quân cùng với một cái đầu lục dục thiên ma. Tiền lộ mênh mông, ...
+  [165.3-192.0] len=372 Tần Tan lên tiếng nói, "Thiên ma lấy lục dục trọc lưu mai nhiễm tu sĩ, vì vậy chúng khác với tu sĩ, hoàn toàn không hề thu liễm cảm xúc gì. Đầu Lục Dụ...
+  [192.5-212.0] len=288 Tần ta nghe vậy mỉm cười, lời này thi thô mà lý chẳng sai. Thiên Ma nội đấu, áp lực của hai người bọn họ liền là đại giảm rồi. Sắc mặt hai người rất n...
+  [212.4-228.4] len=258 Sau khi thương nghị, hai người vẫn là quyết định tiếp tục tiến lên. Trước đó bọn họ dò xét đến Hồng Ma Cấm suy diễn ra động thiên bí cảnh của Địa Cực ...
+  [228.9-245.7] len=295 Hai người một đường đi về phía đông, địa thế không ngừng hạ thấp, khiến cho người ta có cảm giác nơi đây từng là đáy biển, nhưng lại không thấy một ch...
+
+5. MUSIC/NOISE ARTIFACTS: 0
+
+6. PARQUET SAMPLE (first 60 train segments)

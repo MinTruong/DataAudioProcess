@@ -1,10 +1,11 @@
 """CLI entry point for the TTS pipeline."""
 
 import argparse
+from pathlib import Path
 
 from tts_pipeline.config import Settings
 from tts_pipeline.downloader import download_video_and_subs, get_channel_videos
-from tts_pipeline.parser import parse_vtt_full, merge_cues
+from tts_pipeline.parser import parse_vtt_full, merge_cues, export_segments_to_vtt, load_vtt_segments
 from tts_pipeline.processor import (
     clean_text,
     dedup_consecutive_text,
@@ -12,7 +13,7 @@ from tts_pipeline.processor import (
     segment_by_content,
 )
 from tts_pipeline.exporter import export_dataset
-from tts_pipeline.punctuator import restore_punctuation
+from tts_pipeline.punctuator import punctuate_vtt_file
 
 
 def run_pipeline(
@@ -46,13 +47,19 @@ def run_pipeline(
     for seg in merged:
         seg["text"] = clean_text(seg["text"])
 
-    # Punctuation restoration (only if any segment lacks .!?)
+    # Export merged segments → VTT file để inspect
+    merged_vtt = str(Path(raw) / f"{video_info['video_id']}_merged.vtt")
+    export_segments_to_vtt(merged, merged_vtt)
+    print(f"   Saved merged VTT: {merged_vtt}")
+
+    # Punctuation restoration + sentence split via VTT file
+    # Nếu có segment nào thiếu dấu câu → xử lý qua file
     no_punct = [seg for seg in merged
                 if seg["text"] and seg["text"][-1] not in ".!?"]
     if no_punct:
-        for seg in merged:
-            if seg["text"]:
-                seg["text"] = restore_punctuation(seg["text"])
+        punct_vtt = str(Path(raw) / f"{video_info['video_id']}_punctuated.vtt")
+        merged = punctuate_vtt_file(merged_vtt, punct_vtt)
+        print(f"   Saved punctuated VTT: {punct_vtt}")
     print(f"   After punctuation: {len(merged)}")
 
     merged = dedup_consecutive_text(merged)

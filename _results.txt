@@ -1,0 +1,81 @@
+=== RAW VTT CUES (60 dòng đầu) ===
+   1: WEBVTT
+   2: Kind: captions
+   3: Language: vi
+   4:
+   5: 00:00:01.560 --> 00:00:03.350 align:start position:0%
+   6:
+   7: Chào<00:00:01.800><c> mừng</c><00:00:01.959><c> tất</c><00:00:02.159><c> cả</c><00:00:02.280><c> các</c><00:00:02.440><c> đạo</c><00:00:02.600><c> hữu</c><00:00:02.840><c> đã</c><00:00:03.000><c> quay</c><00:00:03.199><c> trở</c>
+   8:
+   9: 00:00:03.350 --> 00:00:03.360 align:start position:0%
+  10: Chào mừng tất cả các đạo hữu đã quay trở
+  11:
+  12:
+  13: 00:00:03.360 --> 00:00:06.190 align:start position:0%
+  14: Chào mừng tất cả các đạo hữu đã quay trở
+  15: lại<00:00:03.520><c> với</c><00:00:03.639><c> kênh</c><00:00:04.120><c> Bách</c><00:00:04.359><c> Audio</c><00:00:05.000><c> Vấn</c><00:00:05.200><c> Đậu</c><00:00:05.400><c> Tông.</c>
+  16:
+  17: 00:00:06.190 --> 00:00:06.200 align:start position:0%
+  18: lại với kênh Bách Audio Vấn Đậu Tông.
+  19:
+  20:
+  21: 00:00:06.200 --> 00:00:07.710 align:start position:0%
+  22: lại với kênh Bách Audio Vấn Đậu Tông.
+  23: Thì<00:00:06.399><c> tiếp</c><00:00:06.600><c> tục</c><00:00:06.720><c> ngày</c><00:00:06.879><c> hôm</c><00:00:07.000><c> nay</c><00:00:07.120><c> Bách</c><00:00:07.319><c> xin</c><00:00:07.480><c> gửi</c>
+  24:
+  25: 00:00:07.710 --> 00:00:07.720 align:start position:0%
+  26: Thì tiếp tục ngày hôm nay Bách xin gửi
+  27:
+  28:
+  29: 00:00:07.720 --> 00:00:11.430 align:start position:0%
+  30: Thì tiếp tục ngày hôm nay Bách xin gửi
+  31: đến<00:00:08.000><c> các</c><00:00:08.160><c> đạo</c><00:00:08.360><c> hữu</c><00:00:09.280><c> tập</c><00:00:09.599><c> 640</c><00:00:10.719><c> của</c><00:00:11.000><c> bộ</c><00:00:11.200><c> truyện</c>
+  32:
+  33: 00:00:11.430 --> 00:00:11.440 align:start position:0%
+  34: đến các đạo hữu tập 640 của bộ truyện
+  35:
+  36:
+  37: 00:00:11.440 --> 00:00:14.990 align:start position:0%
+  38: đến các đạo hữu tập 640 của bộ truyện
+  39: dài<00:00:11.639><c> kỳ</c><00:00:12.000><c> Tần</c><00:00:12.200><c> Lão</c><00:00:12.400><c> Yêu</c><00:00:12.559><c> Tinh.</c><00:00:13.719><c> Thì</c><00:00:14.599><c> như</c><00:00:14.799><c> thường</c>
+  40:
+  41: 00:00:14.990 --> 00:00:15.000 align:start position:0%
+  42: dài kỳ Tần Lão Yêu Tinh. Thì như thường
+  43:
+  44:
+  45: 00:00:15.000 --> 00:00:16.990 align:start position:0%
+  46: dài kỳ Tần Lão Yêu Tinh. Thì như thường
+  47: lệ<00:00:15.320><c> bác</c><00:00:15.519><c> xin</c><00:00:15.719><c> nhắc</c><00:00:15.879><c> sơ</c><00:00:16.080><c> lại</c><00:00:16.199><c> nội</c><00:00:16.359><c> dung</c><00:00:16.560><c> ở</c><00:00:16.840><c> cuối</c>
+  48:
+  49: 00:00:16.990 --> 00:00:17.000 align:start position:0%
+  50: lệ bác xin nhắc sơ lại nội dung ở cuối
+
+
+=== SAU MERGE (143 segments) ===
+  0: [1.6 - 6.2] (4.6s) Chào mừng tất cả các đạo hữu đã quay trở lại với kênh Bách Audio Vấn Đậu Tông.
+  1: [6.2 - 21.2] (15.0s) lại với kênh Bách Audio Vấn Đậu Tông. Thì tiếp tục ngày hôm nay Bách xin gửi đến các đạo hữu tập 640
+  2: [21.2 - 43.1] (21.9s) theo dõi. Ở cuối tập trước thì Tần Tang và La Lạc Ma Quân đã phát hiện ra một cái chỗ là động thiên
+  3: [43.1 - 87.7] (44.6s) pháp tu luyện có liên quan tới thiên ma. Thì nơi này có liên quan tới một mạch là Đế Thiên Tử của Đị
+  4: [87.7 - 108.1] (20.3s) kênh chúng ta sâm tụ một tí. Và dạo này thì bách đi làm rồi cho nên là một ngày đọc được là một vài
+  5: [108.1 - 124.9] (16.8s) [âm nhạc] &gt;&gt; [âm nhạc] &gt;&gt; Cổ khí tức cường đại kia gào thét lướt qua, Tần Tang và La Lạc
+  6: [124.9 - 161.2] (36.3s) nơi ẩn thân cũng là bước ra ngoài. Y lục dục thiên mà. La lạc ma quân chậm rãi thốt ra bốn chữ này.
+  7: [161.2 - 165.1] (4.0s) trùng trùng. Đậu thiên ma này dường như rất là gấp gáp à.
+  8: [165.1 - 192.3] (27.2s) gáp à. Tần Tan lên tiếng nói, "Thiên ma lấy lục dục trọc lưu mai nhiễm tu sĩ, vì vậy chúng khác với
+  9: [192.3 - 212.3] (20.0s) đi. La Lạc Ma quân tràn đầy ác ý mà nói. Tần ta nghe vậy mỉm cười, lời này thi thô mà lý chẳng sai.
+
+
+=== SAU PIPELINE ĐẦY ĐỦ (440 segments) ===
+Train: 396, Test: 44
+
+10 segments đầu (TRAIN):
+  0: Chào mừng tất cả các đạo hữu đã quay trở lại với kênh Bách Audio Vấn Đậu Tông.
+  1: Thì tiếp tục ngày hôm nay Bách xin gửi đến các đạo hữu tập 640 của bộ truyện dài kỳ Tần Lão Yêu Tinh.
+  2: Thì như thường lệ bác xin nhắc sơ lại nội dung ở cuối tập trước một tí để cho các đạo hữu tiện theo dõi.
+  3: Ở cuối tập trước thì Tần Tang và La Lạc Ma Quân đã phát hiện ra một cái chỗ là
+  4: Động thiên bí cảnh do địa cực ma cung mở.
+  5: Thì đây là một cái đại phái rất là lớn mạnh.
+  6: Trước khi là bắt phương ma vực bị thiên ma lưng hãm thì bọn họ là công pháp tu luyện có liên quan tới thiên ma.
+  7: Thì nơi này có liên quan tới một mạch là Đế Thiên Tử của Địa Cực Ma Cung.
+  8: Bọn họ Đế Thiên Tử của Địa Cực Ma Cung. Bọn họ tìm được Đế Hồng Ma Cấm thì đang tìm cách để mà tìm được cái cửa vào xem
+  9: Có lẽ là gặp thiên ma rồi.
+ 10: Rồi vậy thì cũng không vài vòng nữa.

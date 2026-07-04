@@ -1,4 +1,4 @@
-"""VTT caption parsing and cue merging for YouTube auto-captions."""
+"""VTT caption parsing, cue merging, and VTT file I/O."""
 
 import re
 from pathlib import Path
@@ -133,6 +133,14 @@ def merge_cues(cues: list[dict], settings: Settings | None = None) -> list[dict]
             i += 1
             continue
 
+        # Force-break: if prev text is very long without sentence-ending
+        # punctuation, assume a natural boundary exists. This handles
+        # videos where auto-caption has no punctuation cues.
+        if len(prev_text) > 250 and not any(c in prev_text[-150:] for c in ".!?"):
+            merged.append({"start": cue["start"], "end": cue["end"], "text": curr_text})
+            i += 1
+            continue
+
         # Case 3: prev ends with sentence punctuation
         prev_ends = prev_text.rstrip()[-1] if prev_text.rstrip() else ""
         if prev_ends in ".!?":
@@ -182,3 +190,41 @@ def merge_cues(cues: list[dict], settings: Settings | None = None) -> list[dict]
         i += 1
 
     return merged
+
+
+def _format_vtt_time(seconds: float) -> str:
+    """Format seconds as VTT timestamp (HH:MM:SS.mmm)."""
+    h = int(seconds // 3600)
+    m = int((seconds % 3600) // 60)
+    s = seconds % 60
+    return f"{h:02d}:{m:02d}:{s:06.3f}".replace(".", ",")
+
+
+def export_segments_to_vtt(
+    segments: list[dict], path: str | Path,
+) -> None:
+    """Export segment list to VTT file.
+
+    Each segment becomes a VTT cue with start/end time and text.
+    Useful as an intermediate artifact for inspection or re-processing.
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    lines = ["WEBVTT", ""]
+    for seg in segments:
+        start = _format_vtt_time(seg["start"])
+        end = _format_vtt_time(seg["end"])
+        text = seg["text"]
+        lines.append(f"{start} --> {end}")
+        lines.append(text)
+        lines.append("")
+    path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def load_vtt_segments(path: str | Path) -> list[dict]:
+    """Load VTT file back into segment list [{start, end, text}, ...].
+
+    Inverse of export_segments_to_vtt.
+    """
+    return parse_vtt_full(str(path))
