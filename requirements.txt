@@ -6,3 +6,6 @@ pydantic>=2.0,<3.0
 pyyaml>=6.0
 huggingface-hub>=0.20
 underthesea>=6.0
+silero-vad>=0.2
+onnxruntime>=1.15
+librosa>=0.10

@@ -28,6 +28,12 @@ class Settings(BaseModel):
     # Train/test split
     train_split: float = Field(default=0.9, ge=0.5, le=1.0)
 
+    # VAD (Silero-VAD) settings
+    vad_enabled: bool = Field(default=True, description="Enable Silero-VAD for speech boundary detection")
+    vad_threshold: float = Field(default=0.5, ge=0.1, le=0.9, description="VAD speech probability threshold")
+    vad_min_speech_dur: float = Field(default=0.3, ge=0.1, le=2.0, description="Min speech duration (s) to keep")
+    vad_min_silence_dur: float = Field(default=0.3, ge=0.1, le=5.0, description="Min silence (s) to split intervals")
+
     # YouTube
     youtube_caption_langs: list[str] = Field(default=["vi"])
     max_videos_per_channel: int = Field(default=5, ge=1, le=100)
