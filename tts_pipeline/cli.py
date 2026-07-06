@@ -8,9 +8,6 @@ from tts_pipeline.downloader import download_video_and_subs, get_channel_videos
 from tts_pipeline.parser import parse_vtt_full, merge_cues, export_segments_to_vtt, load_vtt_segments
 from tts_pipeline.processor import (
     clean_text,
-    dedup_consecutive_text,
-    fix_time_overlaps,
-    segment_by_content,
 )
 from tts_pipeline.exporter import export_dataset
 from tts_pipeline.punctuator import punctuate_vtt_file
@@ -52,38 +49,49 @@ def run_pipeline(
     export_segments_to_vtt(merged, merged_vtt)
     print(f"   Saved merged VTT: {merged_vtt}")
 
-    # Punctuation restoration + sentence split via VTT file
-    # Nếu có segment nào thiếu dấu câu → xử lý qua file
-    no_punct = [seg for seg in merged
-                if seg["text"] and seg["text"][-1] not in ".!?"]
-    if no_punct:
-        punct_vtt = str(Path(raw) / f"{video_info['video_id']}_punctuated.vtt")
-        merged = punctuate_vtt_file(merged_vtt, punct_vtt)
-        print(f"   Saved punctuated VTT: {punct_vtt}")
-    print(f"   After punctuation: {len(merged)}")
+    # Punctuation restoration
+    from tts_pipeline.punctuator import _split_segment as _do_split
+    merged = [_do_split(s)[0] for s in merged]
+    punct_vtt = str(Path(raw) / f"{video_info['video_id']}_punctuated.vtt")
+    export_segments_to_vtt(merged, punct_vtt)
+    print(f"   Saved punctuated VTT: {punct_vtt}")
 
-    merged = dedup_consecutive_text(merged)
-    print(f"   After dedup: {len(merged)}")
+    # Step 3: VAD speech detection + re-segment
+    print("\n[Step 3] VAD speech detection...")
+    from tts_pipeline.vad import get_speech_intervals
+    from tts_pipeline.vad_aligner import group_vad_intervals, align_text_to_groups
 
-    merged = fix_time_overlaps(merged)
-    print(f"   After fix_time: {len(merged)}")
+    if s.vad_enabled:
+        speech = get_speech_intervals(
+            video_info["audio_path"],
+            sample_rate=s.sample_rate,
+            threshold=s.vad_threshold,
+            min_speech_dur=s.vad_min_speech_dur,
+            min_silence_dur=s.vad_min_silence_dur,
+        )
+        print(f"   Speech intervals: {len(speech)}")
 
-    merged = segment_by_content(merged, s.min_segment_dur, s.max_segment_dur)
-    print(f"   After segment_by_content: {len(merged)}")
+        groups = group_vad_intervals(speech, s.min_segment_dur, s.max_segment_dur)
+        print(f"   After grouping: {len(groups)}")
 
-    merged = fix_time_overlaps(merged)
-    print(f"   After fix_time (2nd pass): {len(merged)}")
+        segments = align_text_to_groups(groups, raw_cues, punctuation=True)
+        print(f"   After text alignment: {len(segments)}")
+    else:
+        from tts_pipeline.processor import fix_time_overlaps, segment_by_content
+        merged = fix_time_overlaps(merged)
+        segments = segment_by_content(merged, s.min_segment_dur, s.max_segment_dur)
+        segments = fix_time_overlaps(segments)
 
-    merged = [seg for seg in merged
-              if seg["text"]
-              and len(seg["text"]) >= s.min_text_len
-              and (seg["end"] - seg["start"]) >= s.min_segment_dur]
-    print(f"   After filter: {len(merged)}")
+    segments = [seg for seg in segments
+                if seg["text"]
+                and len(seg["text"]) >= s.min_text_len
+                and (seg["end"] - seg["start"]) >= s.min_segment_dur]
+    print(f"   After filter: {len(segments)}")
 
-    # Step 3+4: Export
-    print("\n[Step 3+4] Cut audio & export dataset...")
+    # Step 4: Export
+    print("\n[Step 4] Cut audio & export dataset...")
     result = export_dataset(
-        merged, out, video_info["video_id"],
+        segments, out, video_info["video_id"],
         video_info["audio_path"], s,
         split_train_test=True,
     )
