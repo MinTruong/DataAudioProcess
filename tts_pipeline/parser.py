@@ -111,7 +111,11 @@ def merge_cues(cues: list[dict], settings: Settings | None = None) -> list[dict]
             continue
 
         if not merged:
-            merged.append({"start": cue["start"], "end": cue["end"], "text": curr_text})
+            merged.append({
+                "start": cue["start"], "end": cue["end"],
+                "text": curr_text,
+                "_cues": [{"start": cue["start"], "end": cue["end"]}],
+            })
             i += 1
             continue
 
@@ -124,12 +128,16 @@ def merge_cues(cues: list[dict], settings: Settings | None = None) -> list[dict]
         if curr_lower.startswith(prev_lower) and len(curr_text) > len(prev_text):
             prev["text"] = curr_text
             prev["end"] = cue["end"]
+            if "_cues" in prev:
+                prev["_cues"].append({"start": cue["start"], "end": cue["end"]})
             i += 1
             continue
 
         # Case 2: prev fully contains current → skip (just extend time)
         if prev_lower.startswith(curr_lower) and len(prev_text) >= len(curr_text):
             prev["end"] = max(prev["end"], cue["end"])
+            if "_cues" in prev:
+                prev["_cues"].append({"start": cue["start"], "end": cue["end"]})
             i += 1
             continue
 
@@ -137,7 +145,11 @@ def merge_cues(cues: list[dict], settings: Settings | None = None) -> list[dict]
         # punctuation, assume a natural boundary exists. This handles
         # videos where auto-caption has no punctuation cues.
         if len(prev_text) > 250 and not any(c in prev_text[-150:] for c in ".!?"):
-            merged.append({"start": cue["start"], "end": cue["end"], "text": curr_text})
+            merged.append({
+                "start": cue["start"], "end": cue["end"],
+                "text": curr_text,
+                "_cues": [{"start": cue["start"], "end": cue["end"]}],
+            })
             i += 1
             continue
 
@@ -161,7 +173,11 @@ def merge_cues(cues: list[dict], settings: Settings | None = None) -> list[dict]
                 continue
 
             # New segment — dedup in processor.py handles residual overlap
-            merged.append({"start": cue["start"], "end": cue["end"], "text": curr_text})
+            merged.append({
+                "start": cue["start"], "end": cue["end"],
+                "text": curr_text,
+                "_cues": [{"start": cue["start"], "end": cue["end"]}],
+            })
             i += 1
             continue
 
@@ -187,6 +203,8 @@ def merge_cues(cues: list[dict], settings: Settings | None = None) -> list[dict]
         spacer = " " if rest else ""
         prev["text"] = prev_text + spacer + rest
         prev["end"] = cue["end"]
+        if "_cues" in prev:
+            prev["_cues"].append({"start": cue["start"], "end": cue["end"]})
         i += 1
 
     return merged

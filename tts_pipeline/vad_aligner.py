@@ -22,11 +22,14 @@ def group_vad_intervals(
 
     for iv in intervals[1:]:
         group_dur = current[-1]["end"] - current[0]["start"]
-        iv_dur = iv["end"] - iv["start"]
+        new_group_dur = iv["end"] - current[0]["start"]
 
-        if group_dur < min_dur:
-            current.append(iv)
-        elif group_dur + iv_dur > max_dur and group_dur >= min_dur:
+        if new_group_dur > max_dur and group_dur >= min_dur:
+            # Emit current group, start new one
+            groups.append(current)
+            current = [iv]
+        elif new_group_dur > max_dur and group_dur < min_dur:
+            # Can't reach min_dur without exceeding max_dur — emit short tail
             groups.append(current)
             current = [iv]
         else:
@@ -62,6 +65,9 @@ def align_text_to_groups(
     3. Neu punctuation=True, chay restore_punctuation()
     4. Return {start, end, text}
     """
+    # Strip VTT markup from cues before alignment
+    _strip_markup = lambda t: re.sub(r"<[^>]+>", "", t).strip()
+
     results = []
     for g in groups:
         texts = []
@@ -70,8 +76,8 @@ def align_text_to_groups(
                 cue["start"], cue["end"],
                 g["start"], g["end"],
             )
-            if ratio > 0.3:
-                texts.append(cue["text"])
+            if ratio > 0.1:
+                texts.append(_strip_markup(cue["text"]))
 
         joined = " ".join(texts)
         joined = re.sub(r"\s+", " ", joined).strip()

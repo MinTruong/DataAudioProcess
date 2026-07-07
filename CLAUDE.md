@@ -29,7 +29,7 @@ pip install -r requirements.txt
 
 This project is a modular TTS dataset pipeline for Vietnamese audio books.
 
-Pipeline flow: YouTube URL → downloader → parser → processor → exporter → Parquet + WAV
+Pipeline flow: YouTube URL → downloader → parser → punctuator → vad + aligner → exporter → Parquet + WAV
 
 ### Pipeline stages
 
@@ -44,47 +44,30 @@ YouTube URL
        ▼
 ┌──────────────┐
 │  parser      │  parse_vtt_full() → merge_cues()
-│  merge_cues  │  2702 raw VTT cues → 143 merged segments
+│  merge_cues  │  2702 raw VTT cues → 217 merged segments
 │              │  - Fragments (<0.3s): extend time only, never overwrite text
 │              │  - Word-level cues: combine if same utterance
 │              │  - Gặp .!? bắt đầu segment mới
+│              │  - Force-break text >250 chars without punctuation
 └──────┬───────┘
        │
        ▼
-┌──────────────┐
-│  clean_text  │  Normalize whitespace
-└──────┬───────┘
+┌───────────────────┐
+│  punctuator        │  restore_punctuation() + _split_by_clause()
+│                    │  Thêm .!? cho VTT không dấu câu
+└──────┬────────────┘
        │
        ▼
-┌──────────────────┐
-│ dedup_consecutive │  Xoá overlap text giữa segment kế
-│ _text             │  Check suffix của prev ở MỌI vị trí trong curr
-│                   │  (max 15 từ, word-boundary, iterate all positions)
-└──────┬───────────┘
+┌───────────────────┐
+│  Silero-VAD        │  get_speech_intervals() → [{start,end}]
+│                    │  Speech detection từ audio waveform
+└──────┬────────────┘
        │
        ▼
-┌──────────────────┐
-│ fix_time_overlaps │  Đẩy start time nếu 2 segment chồng lấn
-└──────┬───────────┘
-       │
-       ▼
-┌──────────────────┐
-│ segment_by_       │  NHÓM merged segments thành group 5-20s
-│ content           │  - Mỗi merged segment là atomic unit (không split nội bộ)
-│                   │  - Music/noise artifacts được strip
-│                   │  - Greedy grouping: gom đến 5-20s
-│                   │  - Trim 0.15s đầu + 0.3s cuối → audio-text khớp
-└──────┬───────────┘
-       │
-       ▼
-┌──────────────────┐
-│ fix_time_overlaps │  (2nd pass) sau khi trim
-└──────┬───────────┘
-       │
-       ▼
-┌──────────────┐
-│   filter     │  Bỏ segment: rỗng, <5s, <10 ký tự
-└──────┬───────┘
+┌───────────────────┐
+│  VAD Aligner       │  group_vad_intervals() 5-20s
+│                    │  align_text_to_groups() → overlap VTT cues
+└──────┬────────────┘
        │
        ▼
 ┌──────────────┐
@@ -96,7 +79,9 @@ YouTube URL
 - `config.py` — Pydantic settings, YAML loading, ffmpeg validation
 - `downloader.py` — yt-dlp wrapper for audio + auto-caption (Vietnamese)
 - `parser.py` — VTT caption parser + `merge_cues()`: YouTube fragment merging, 5-case content-aware merge
-- `processor.py` — Text cleaning, `dedup_consecutive_text()`, `fix_time_overlaps()`, `segment_by_content()` (group by duration, no intra-segment split)
+- `punctuator.py` — Vietnamese punctuation restoration, clause splitting for raw VTT text
+- `vad.py` — **Silero-VAD wrapper**: `get_speech_intervals()` → speech intervals from audio
+- `vad_aligner.py` — **VAD interval grouper + text aligner**: `group_vad_intervals()`, `align_text_to_groups()`
 - `exporter.py` — ffmpeg audio cutting, Parquet export, train/test split
 - `cli.py` — CLI entry point (argparse)
 
@@ -110,27 +95,27 @@ YouTube URL
 ### Key design decisions
 - YouTube auto-caption VTT is used as the transcription source (no Whisper needed)
 - WAV output: mono, 22050Hz, 16-bit (standard for TTS)
-- Segment duration: **5-20s**, content-aware grouping (merged segments stay atomic)
-- **No intra-segment split** — prevents audio-text mismatch from VTT overlap
-- Boundary trim: 0.15s đầu + 0.3s cuối mỗi group để tránh bleed
+- **VAD-based re-segment**: Silero-VAD replaces VTT timing completely. Text from VTT, boundaries from voice activity.
+- VAD threshold: 0.3 (lower than default 0.5 for audiobook with background music)
+- Segment duration: **5-20s**, greedy VAD interval grouping
+- **No dedup** — text from VTT cues overlap > 0.1 with VAD group
+- VTT markup (`<c>...</c>`) stripped during alignment
 - Train/test split via export (default 90/10)
 - Config via YAML, overridable via CLI args
 
-### segment_by_content (processor.py)
+### vad.py (VAD scanner)
 
-Input: 143 merged segments (sau merge_cues).
+```python
+speech = get_speech_intervals(audio_path, threshold=0.3, min_speech_dur=0.3, min_silence_dur=0.3)
+# Returns: [{start: 201.4, end: 201.9}, ...]
+```
+Uses Silero-VAD's built-in `get_speech_timestamps()`. Resamples audio to 16kHz for VAD. Returns 748 intervals for a 45-min video.
 
-**Bước 1 — Strip music:** Mỗi segment kiểm tra `_has_music_noise()`, nếu có `[âm nhạc]`/`[nhạc]`/`[music]`/`&gt;` thì strip bằng `_strip_music_noise()`, giữ content còn lại.
+### vad_aligner.py
 
-**Bước 2 — Greedy grouping (5-20s target):**
-- `group_dur < min_dur (5s)` → bắt buộc gộp (không orphan)
-- `group_dur + seg_dur > max_dur (20s)` và `group_dur >= min_dur` → emit group, bắt đầu mới
-- Còn room → gộp tiếp
-- Tail group luôn được emit
-
-**Bước 3 — Boundary trim:** 0.15s đầu + 0.3s cuối mỗi group để tránh VTT overlap artifact.
-
-**Quan trọng: KHÔNG split intra-segment.** YouTube VTT word-level cues có overlap (cùng 1 cue chứa cuối câu trước + đầu câu sau). Character-ratio proration gây audio-text mismatch. Mỗi merged segment là atomic unit → ranh giới group = ranh giới VTT thật.
+- `group_vad_intervals(intervals)` → greedy 5-20s groups. Emit group when adding next interval would exceed max_dur.
+- `align_text_to_groups(groups, raw_cues)` → overlaps raw VTT cues with each group (ratio > 0.1), joins text, strips markup, punctuates.
+- Returns 204 segments from 748 VAD intervals for a 45-min video.
 
 ### merge_cues (parser.py)
 
@@ -142,7 +127,9 @@ Input: 143 merged segments (sau merge_cues).
 - Case 5: no punctuation → merge vào sentence hiện tại (suffix overlap dedup)
 
 Fragments (<0.3s): **chỉ extend time, không ghi đè text**
+Force-break: if len(prev_text) > 250 and no punctuation in last 150 chars → new segment.
 
-### dedup_consecutive_text (processor.py)
+### punctuator.py
 
-Tìm suffix dài nhất của prev segment xuất hiện ở MỌI vị trí trong curr segment (substring). Strip từ start curr qua hết overlap. Max 15 từ, word-boundary check. Nếu empty sau strip → skip segment.
+- `restore_punctuation()`: dùng underthesea.sent_tokenize() + heuristics (từ hỏi→?, cảm thán→!, còn lại→.)
+- `_split_by_clause()`: cắt text flow bằng discourse markers: "nhưng", "cho nên", "tại vì", "rồi thì", "với lại", "nói chung là"

@@ -19,7 +19,7 @@ class Settings(BaseModel):
 
     # Text filtering
     min_text_len: int = Field(default=10, ge=1, le=100)
-    max_text_len: int = Field(default=500, ge=50, le=2000)
+    max_text_len: int = Field(default=1500, ge=50, le=5000)
 
     # VTT parsing
     merge_gap: float = Field(default=0.5, ge=0.1, le=2.0, description="Max gap (s) to merge adjacent cues")
@@ -30,7 +30,7 @@ class Settings(BaseModel):
 
     # VAD (Silero-VAD) settings
     vad_enabled: bool = Field(default=True, description="Enable Silero-VAD for speech boundary detection")
-    vad_threshold: float = Field(default=0.5, ge=0.1, le=0.9, description="VAD speech probability threshold")
+    vad_threshold: float = Field(default=0.3, ge=0.1, le=0.9, description="VAD speech probability threshold")
     vad_min_speech_dur: float = Field(default=0.3, ge=0.1, le=2.0, description="Min speech duration (s) to keep")
     vad_min_silence_dur: float = Field(default=0.3, ge=0.1, le=5.0, description="Min silence (s) to split intervals")
 

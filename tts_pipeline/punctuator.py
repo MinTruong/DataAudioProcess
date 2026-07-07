@@ -13,6 +13,40 @@ _QUESTION_WORDS = {
     "à", "hả", "nhỉ", "nhé", "chứ", "chăng", "ư", "hử", "hở",
 }
 
+# Connector words that typically belong to the NEXT sentence but get
+# stuck at the end of a segment due to VTT word-level cue overlap.
+_TAIL_JUNK_RE = re.compile(
+    r"\b(nhưng mà|cho nên|bởi vì|tại vì|với lại|rồi thì|thế là|vậy là)[.!?,\s]*$",
+    re.IGNORECASE,
+)
+
+
+def _strip_edge_junk(segments: list[dict]) -> list[dict]:
+    """Strip residual connector words from segment edges (VTT overlap).
+
+    YouTube word-level cues often include the first word(s) of the next
+    utterance at the end of the current cue. After merge_cues, these
+    connector words sit at the end of the segment, causing audio-text
+    mismatch.
+
+    Also strips the same connector from the START of the next segment
+    if it is a known connector, since dedup will handle longer overlaps.
+    """
+    result = []
+    for seg in segments:
+        text = seg["text"]
+        if text:
+            # Strip trailing connector junk
+            text = _TAIL_JUNK_RE.sub("", text).strip()
+            # Strip leading connector junk (residual from prev segment)
+            text = re.sub(
+                r"^(nhưng mà|cho nên|bởi vì|tại vì|với lại|rồi thì|thế là|vậy là)\s+",
+                "", text, flags=re.IGNORECASE,
+            ).strip()
+        result.append({**seg, "text": text})
+    return result
+
+
 _CLAUSE_SPLIT_MARKERS = [
     "nhưng", "cho nên là", "cho nên", "tại vì", "bởi vì",
     "rồi thì", "thế là", "vậy là", "tuy nhiên", "với lại",
@@ -154,86 +188,16 @@ def restore_punctuation(text: str) -> str:
     return " ".join(result)
 
 
-def _split_segment(s: dict, min_len: int = 150) -> list[dict]:
-    """Split one segment by clause markers if it has no punctuation.
-
-    Each clause gets a prorated time slice based on character ratio.
-    If the segment already has punctuation or is short, return as-is
-    (with punctuation restored).
-    """
+def _split_segment(s: dict) -> list[dict]:
+    """Restore punctuation on text only, keeping original segment timing intact."""
     text = s["text"] or ""
     if not text.strip():
         return [s]
-
-    # Always restore punctuation on the original text first
     text = restore_punctuation(text)
-
-    # Only split if text has no sentence punctuation and is long enough
-    _has_punct = any(c in text for c in ".!?")
-    if _has_punct and len(text) < min_len:
-        s["text"] = text
-        return [s]
-
-    # If text has punctuation, try sentence split
-    if _has_punct:
-        parts = re.split(r"(?<=[.!?])\s+", text)
-        parts = [p.strip() for p in parts if p and p.strip()]
-    else:
-        # No punctuation → use clause split
-        chunks = _split_by_clause(text)
-        if len(chunks) <= 1:
-            s["text"] = text
-            return [s]
-        # Punctuate each chunk then split
-        parts = []
-        for ch in chunks:
-            punct_ch = restore_punctuation(ch)
-            sub = re.split(r"(?<=[.!?])\s+", punct_ch)
-            parts.extend(p.strip() for p in sub if p and p.strip())
-
-    if len(parts) <= 1:
-        s["text"] = text
-        return [s]
-
-    # Filter out degenerate tail clauses: short text (< 3 words) that is
-    # a suffix of the previous clause (VTT overlap artifact).
-    filtered = [parts[0]]
-    for i in range(1, len(parts)):
-        prev = filtered[-1]
-        curr = parts[i]
-        prev_words_5 = " ".join(prev.split()[-5:]).lower()
-        curr_lower = curr.lower().strip()
-        # If current is <= 3 words and is contained in prev's tail → skip
-        if len(curr.split()) <= 3 and curr_lower in prev_words_5:
-            continue
-        filtered.append(curr)
-
-    if len(filtered) <= 1:
-        s["text"] = text
-        return [s]
-    parts = filtered
-
-    # Prorate time within THIS segment only
-    dur = s["end"] - s["start"]
-    total_chars = max(sum(len(p) for p in parts), 1)
-    char_ratio = dur / total_chars
-
-    out = []
-    cur = s["start"]
-    for part in parts:
-        part_dur = max(len(part) * char_ratio, 0.3)  # min 0.3s
-        out.append({
-            "start": cur,
-            "end": min(cur + part_dur, s["end"]),
-            "text": part,
-        })
-        cur += part_dur * 1.0  # sequential, no gap
-
-    # Clamp last end
-    if out:
-        out[-1]["end"] = s["end"]
-
-    return out
+    # Strip residual connector words from VTT cue overlap
+    text = _TAIL_JUNK_RE.sub("", text).strip()
+    s["text"] = text
+    return [s]
 
 
 def punctuate_vtt_file(

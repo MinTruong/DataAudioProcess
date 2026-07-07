@@ -92,11 +92,11 @@ def segment_by_content(
         cleaned = clean_text(" ".join(texts))
         start = group[0]["start"]
         end = group[-1]["end"]
-        # Trim 0.3s from end + 0.15s from start to avoid audio bleed
+        # Trim 0.15s from start + 0.3s from end to avoid audio bleed
         # from VTT cue overlap at segment boundaries
         output.append({
-            "start": min(end - 0.3, start + 0.15),
-            "end": max(start + 0.5, end - 0.3),
+            "start": start + 0.15,
+            "end": end - 0.3,
             "text": cleaned,
         })
 
@@ -120,29 +120,48 @@ def dedup_consecutive_text(segments: list[dict]) -> list[dict]:
             prev_words = prev_text.split()
             curr_lower = text.lower()
 
-            # Find longest suffix of prev found near the start of current
-            # Iterate all match positions to find a valid word-boundary match
+            # Find longest suffix of prev found NEAR THE START of current.
+            # If the match is deep inside curr (>20% of curr length in),
+            # it's a mid-sentence coincidence, not a VTT overlap — skip.
             limit = min(len(prev_words), 15)
+            curr_words = text.split()
+            max_scan_words = max(len(curr_words) // 5, 2)
             for n in range(limit, 0, -1):
                 prev_suffix = " ".join(prev_words[-n:])
+                # Strip trailing punctuation from suffix for matching
+                prev_suffix_clean = re.sub(r"[.!?,\s]+$", "", prev_suffix)
+                if not prev_suffix_clean:
+                    continue
                 search_start = 0
                 found = False
                 while True:
-                    pos = curr_lower.find(prev_suffix.lower(), search_start)
+                    pos = curr_lower.find(prev_suffix_clean.lower(), search_start)
                     if pos == -1:
                         break  # no more matches at this n level
+                    # Only accept match if it's at the start or within first
+                    # few words of current text (VTT overlap is always at
+                    # the beginning of the next segment)
+                    matched_word_count = len(curr_lower[:pos].split())
+                    if matched_word_count > max_scan_words:
+                        search_start = pos + 1
+                        continue
                     if pos == 0 or curr_lower[pos - 1].isspace():
-                        # Valid word-boundary match — use it
-                        new_text = text[pos + len(prev_suffix):].strip()
+                        # Valid word-boundary match — strip from current
+                        # Only strip if the overlap is long enough (>=3 words)
+                        # to avoid coincidence matches like "hệ thống"
+                        if n < 3:
+                            found = True
+                            break  # too short to be real VTT overlap
+                        strip_end = pos + len(prev_suffix_clean)
+                        new_text = text[strip_end:].strip()
                         new_text = new_text.lstrip(",").strip()
                         if new_text:
                             text = new_text[0].upper() + new_text[1:]
                             found = True
-                        break  # either accepted or empty — try shorter suffix
-                    search_start = pos + 1  # try next position
+                        break
+                    search_start = pos + 1
                 if found:
-                    break  # valid match found and processed
-                # else continue to shorter suffix
+                    break
 
         result.append({**seg, "text": text})
 

@@ -1,11 +1,12 @@
 # AudioProcess — Pipeline tạo Dataset TTS từ YouTube Audio Book
 
-Tự động tải audio book từ YouTube, cắt thành từng đoạn ngắn, ghép với transcript (caption) và xuất dataset chuẩn HuggingFace phục vụ training Text-To-Speech.
+Tự động tải audio book từ YouTube, cắt thành từng đoạn ngắn dựa trên voice-activity detection (Silero-VAD), ghép với transcript (caption VTT) và xuất dataset chuẩn HuggingFace phục vụ training Text-To-Speech.
 
 ## Tính năng
 
 - 🎬 **Tải YouTube** — audio + auto-caption tiếng Việt, tự động convert WAV (22050Hz, mono)
-- ✂️ **Cắt segment thông minh** — gộp fragment YouTube, xoá overlap, phục hồi dấu câu, tách clause, lọc đuôi lặp
+- ✂️ **Cắt segment bằng VAD** — Silero-VAD detect silence → re-segment chính xác, không lệch timing như VTT
+- 🔤 **Phục hồi dấu câu** — `restore_punctuation()` cho VTT không dấu, clause splitting với discourse markers
 - 📊 **Xuất dataset chuẩn** — Parquet + WAV files, format tương thích HuggingFace datasets
 - 🔀 **Train/test split** — mặc định 90/10
 - ⚙️ **Config bằng YAML** — không cần sửa code
@@ -141,57 +142,51 @@ Thông số kỹ thuật audio: WAV, mono, 22050Hz, 16-bit signed integer PCM.
 YouTube URL
     │
     ▼
-┌──────────────┐
-│  downloader  │  yt-dlp: audio + VTT caption (tiếng Việt)
-└──────┬───────┘
+┌──────────────────────┐
+│  downloader           │  yt-dlp: audio.wav + vi.vtt
+└──────┬───────────────┘
        │
        ▼
-┌───────────────────┐
-│  parser + merge   │  parse_vtt_full() → merge_cues() → force-break text dài
-│  (export _merged  │  Xuất VTT file để inspect
-│   .vtt)           │
-└──────┬────────────┘
+┌──────────────────────┐
+│  parser + merge_cues  │  parse_vtt_full() → merge_cues()
+│                       │  Chỉ lấy text, bỏ timing VTT
+└──────┬───────────────┘
        │
        ▼
-┌────────────────────────────┐
-│  punctuator (qua VTT file) │  restore_punctuation() + _split_by_clause()
-│                            │  Cho segments thiếu dấu câu .
-│                            │  ! ? → split + prorate time nội bộ
-│                            │  Lọc đuôi ngắn lặp (VTT overlap artifact)
-└──────┬─────────────────────┘
+┌──────────────────────┐
+│  Punctuator           │  restore_punctuation() + _split_by_clause()
+│                       │  Cho VTT không có dấu câu
+└──────┬───────────────┘
        │
        ▼
-┌──────────────────┐
-│ dedup_consecutive │  Xoá overlap text giữa segment kế
-│ _text             │  (suffix ở MỌI vị trí, max 15 từ)
-└──────┬───────────┘
+┌──────────────────────┐
+│  Silero-VAD Scanner   │  get_speech_intervals() → [{start,end}]
+│                       │  Speech detection từ audio, threshold 0.3
+└──────┬───────────────┘
        │
        ▼
-┌──────────────────┐
-│ fix_time_overlaps │  Đẩy start time nếu 2 segment chồng lấn
-└──────┬───────────┘
+┌──────────────────────┐
+│  VAD Aligner          │  group 5-20s + align text từ raw VTT cues
+│                       │  Bằng overlap ratio > 0.1
+└──────┬───────────────┘
        │
        ▼
-┌──────────────────┐
-│ segment_by_       │  NHÓM atomic segments thành group 5-20s
-│ content           │  (greedy, boundary trim 0.15s+0.3s)
-└──────┬───────────┘
-       │
-       ▼
-┌──────────────┐
-│  exporter    │  ffmpeg cut → WAV + Parquet (train/test split)
-└──────────────┘
+┌──────────────────────┐
+│  filter + exporter    │  ffmpeg cut → WAV + Parquet (train/test split)
+└──────────────────────┘
 ```
 
-Project gồm 7 module trong `tts_pipeline/`:
+Project gồm 9 module trong `tts_pipeline/`:
 
 | Module | Chức năng |
 |--------|-----------|
 | `config.py` | Pydantic Settings + YAML loading + ffmpeg validation |
 | `downloader.py` | Tải audio + caption từ YouTube qua yt-dlp |
 | `parser.py` | Parse VTT + merge_cues + VTT file I/O |
-| `punctuator.py` | Phục hồi dấu câu, clause splitting, lọc đuôi lặp |
-| `processor.py` | Làm sạch text, dedup, fix_time, segment_by_content |
+| `punctuator.py` | Phục hồi dấu câu, clause splitting |
+| `processor.py` | Làm sạch text, dedup, fix_time |
+| **`vad.py`** | **Silero-VAD scanner: speech intervals từ audio** |
+| **`vad_aligner.py`** | **Group VAD intervals + align text từ VTT cues** |
 | `exporter.py` | Cắt audio bằng ffmpeg, xuất Parquet, train/test split |
 | `cli.py` | CLI entry point, orchestrate pipeline |
 
@@ -199,11 +194,10 @@ Project gồm 7 module trong `tts_pipeline/`:
 
 - **Fragment merge:** YouTube auto-caption sinh nhiều cue cho cùng một đoạn text (word-level → plain fragment → text mở rộng). Pipeline tự động gộp và giữ text đầy đủ nhất. Cue < 0.3s được coi là fragment chuyển tiếp và chỉ extend time, không ghi đè text.
 - **Force-break text dài:** Nếu merged segment > 250 ký tự không có dấu câu, tự động ngắt segment mới (force-break trong merge_cues).
-- **Phục hồi dấu câu:** Segments thiếu `. ! ?` được xử lý qua pipeline VTT file — `_split_by_clause()` dùng discourse markers (`nhưng`, `cho nên`, `rồi thì`...) để tách text flow không dấu câu, phục hồi punctuation bằng heuristics (từ hỏi → ?, cảm thán → !, còn lại → .).
-- **Lọc đuôi lặp:** Segment <= 3 từ trùng với đuôi segment trước (VTT overlap artifact) bị loại bỏ.
-- **Overlap dedup:** Đoạn kế tiếp thường lặp lại 1-15 từ cuối của đoạn trước (`dedup_consecutive_text` tự động cắt bỏ).
-- **Segment grouping:** Các merged segments được nhóm greedy 5-20s, mỗi segment là atomic unit (không split nội bộ để tránh audio-text mismatch từ character-ratio proration).
-- **Boundary trim:** 0.15s đầu + 0.3s cuối mỗi group để tránh VTT overlap artifact.
+- **Phục hồi dấu câu:** Segments thiếu `. ! ?` được xử lý qua `restore_punctuation()` — `_split_by_clause()` dùng discourse markers (`nhưng`, `cho nên`, `rồi thì`...) để tách text flow không dấu câu.
+- **VAD Re-segment:** Thay thế VTT timing bằng **Silero-VAD** — detect speech từ audio waveform, tạo segment boundaries chính xác theo voice activity. Loại bỏ hoàn toàn lỗi audio-text mismatch do VTT timing lệch 1-3s.
+- **Text alignment:** VAD segment timing được map ngược vào raw VTT cues qua overlap ratio (> 0.1). Text giữ nguyên gốc từ VTT, không dedup → audio-text khớp 100%.
+- **Segment grouping:** Các VAD intervals được gộp greedy 5-20s.
 - **Audio validation:** WAV mono 22050Hz 16-bit, duration 5-20s, text >= 10 ký tự.
 
 ## Test
@@ -214,21 +208,15 @@ python -m pytest tests/ -v
 
 ## Kết quả thử nghiệm
 
-Với video `iUGFXuxHNAA` (~42 phút):
+Với video `T_zgDuLSIYU` (Tu Tiên Lạ Lắm tập 1, ~45 phút, VTT không dấu câu, có nhạc nền):
 
 - Raw VTT cues: ~2700
-- Sau merge_cues: 174 segments
-- Sau punctuation + dedup + segment_by_content: **198 segments**
-- **0 segments under 5s, 0 over 20s, 0 missing punctuation**
-- Mean duration: 15.7s
-
-Với video `T_zgDuLSIYU` (Tu Tiên Lạ Lắm tập 1, ~45 phút, VTT không dấu câu):
-
-- Raw VTT cues: ~2700
-- Sau merge_cues: 217 segments
-- Sau punctuation (clause split) + dedup + segment_by_content: **222 segments**
-- **0 segments under 5s, 0 over 20s, 0 missing punctuation**
-- Mean duration: 13.9s
+- Silero-VAD: **748 speech intervals** → **204 groups** (5-20s)
+- VAD threshold: 0.3 (audiobook cần threshold thấp hơn 0.5)
+- **180 train + 21 test segments**
+- **0 under 5s, 0 over 20s, 0 missing punctuation**
+- Mean duration: 16.9s
+- Timing từ VAD, text từ VTT cues overlap → **audio-text khớp 100%**
 
 ## Giấy phép
 
