@@ -2,11 +2,11 @@
 # Usage: python scripts/push_to_hub.py --config configs/upload.yaml
 
 repo: minhth/Bach_Van_Dao_Tong_YT   # Bắt buộc: repo ID trên HuggingFace
-dir: dataset                             # Thư mục chứa parquet + audio/
+dir: dataset                                  # Thư mục chứa parquet + audio/
 # parquet: dataset/train.parquet         # Hoặc chỉ upload 1 file parquet
 
 # Token: để trống nếu đã dùng huggingface-cli login
-token: hf_xxx
+token: ''                                  # Hoặc set: set HF_TOKEN=hf_xxx
 # Hoặc set biến môi trường: set HF_TOKEN=hf_xxx
 
 language: vi

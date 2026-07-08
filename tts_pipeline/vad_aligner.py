@@ -52,6 +52,55 @@ def _overlap_ratio(a_start: float, a_end: float, b_start: float, b_end: float) -
     return overlap / duration
 
 
+def _dedup_consecutive_text(texts: list[str]) -> list[str]:
+    """Dedup overlapping word-level VTT cues.
+
+    YouTube word-level cues are incremental: each cue extends the
+    previous one with suffix overlap (e.g. ``"A B C"``, ``"C D"`` → ``"A B C D"``).
+    Rules (applied to consecutive pairs):
+    1. Current is substring of last added → skip
+    2. Current extends last added (last is prefix of current) → replace last
+    3. Last added ends with current → skip
+    4. Current overlaps suffix of last added → append only the non-overlap part
+    5. Otherwise → append as-is
+    """
+    if not texts:
+        return []
+
+    result = [texts[0]]
+    for t in texts[1:]:
+        if not t:
+            continue
+        prev = result[-1]
+
+        # 1. Current is substring of last added → skip
+        if t in prev:
+            continue
+        # 2. Current extends last added → replace
+        if t.startswith(prev):
+            result[-1] = t
+            continue
+        # 3. Last added ends with current → skip
+        if prev.endswith(t):
+            continue
+
+        # 4. Check for suffix/prefix overlap
+        overlap_len = 0
+        max_check = min(len(prev), len(t))
+        for i in range(max_check, 0, -1):
+            if prev[-i:] == t[:i]:
+                overlap_len = i
+                break
+
+        if overlap_len > 0:
+            result.append(t[overlap_len:])
+        else:
+            # 5. No overlap → append as-is
+            result.append(t)
+
+    return result
+
+
 def align_text_to_groups(
     groups: list[dict],
     raw_vtt_cues: list[dict],
@@ -60,8 +109,8 @@ def align_text_to_groups(
     """Gan text cho moi VAD group tu raw VTT cues overlap.
 
     Voi moi group:
-    1. Tim raw VTT cues co overlap > 0.3 voi group
-    2. Lay text, join, clean whitespace
+    1. Tim raw VTT cues co overlap > 0.1 voi group
+    2. Dedup word-level overlapping cues, join, clean whitespace
     3. Neu punctuation=True, chay restore_punctuation()
     4. Return {start, end, text}
     """
@@ -87,6 +136,9 @@ def align_text_to_groups(
             )
             if ratio > 0.1:
                 texts.append(_strip(cue["text"]))
+
+        # Dedup word-level overlapping cues
+        texts = _dedup_consecutive_text(texts)
 
         joined = " ".join(texts)
         joined = re.sub(r"\s+", " ", joined).strip()
