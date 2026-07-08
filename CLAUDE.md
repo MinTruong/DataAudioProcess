@@ -65,7 +65,7 @@ YouTube URL
        │
        ▼
 ┌───────────────────┐
-│  VAD Aligner       │  group_vad_intervals() 5-20s
+│  VAD Aligner       │  group_vad_intervals() 5-15s
 │                    │  align_text_to_groups() → overlap VTT cues
 └──────┬────────────┘
        │
@@ -96,8 +96,10 @@ YouTube URL
 - YouTube auto-caption VTT is used as the transcription source (no Whisper needed)
 - WAV output: mono, 22050Hz, 16-bit (standard for TTS)
 - **VAD-based re-segment**: Silero-VAD replaces VTT timing completely. Text from VTT, boundaries from voice activity.
-- VAD threshold: 0.3 (lower than default 0.5 for audiobook with background music)
-- Segment duration: **5-20s**, greedy VAD interval grouping
+- VAD threshold: **0.4** (0.5 quá cao → mất speech; 0.25 → noisy; 0.4 optimal cho audiobook có nhạc nền)
+- `vad_min_speech_dur`: **0.15s** (thấp hơn default 0.3 để bắt thêm intervals ngắn)
+- Segment duration: **5-15s**, greedy VAD interval grouping
+- `max_text_len`: **3000** (VAD group text dài hơn segment VTT gốc)
 - **No dedup** — text from VTT cues overlap > 0.1 with VAD group
 - VTT markup (`<c>...</c>`) stripped during alignment
 - Train/test split via export (default 90/10)
@@ -106,16 +108,16 @@ YouTube URL
 ### vad.py (VAD scanner)
 
 ```python
-speech = get_speech_intervals(audio_path, threshold=0.3, min_speech_dur=0.3, min_silence_dur=0.3)
+speech = get_speech_intervals(audio_path, threshold=0.4, min_speech_dur=0.15, min_silence_dur=0.3)
 # Returns: [{start: 201.4, end: 201.9}, ...]
 ```
-Uses Silero-VAD's built-in `get_speech_timestamps()`. Resamples audio to 16kHz for VAD. Returns 748 intervals for a 45-min video.
+Uses Silero-VAD's built-in `get_speech_timestamps()`. Resamples audio to 16kHz for VAD. Returns ~780 intervals for a 45-min video.
 
 ### vad_aligner.py
 
-- `group_vad_intervals(intervals)` → greedy 5-20s groups. Emit group when adding next interval would exceed max_dur.
+- `group_vad_intervals(intervals)` → greedy 5-15s groups. Emit group when adding next interval would exceed max_dur.
 - `align_text_to_groups(groups, raw_cues)` → overlaps raw VTT cues with each group (ratio > 0.1), joins text, strips markup, punctuates.
-- Returns 204 segments from 748 VAD intervals for a 45-min video.
+- Returns ~271 segments from ~780 VAD intervals for a 45-min video.
 
 ### merge_cues (parser.py)
 

@@ -65,11 +65,20 @@ def align_text_to_groups(
     3. Neu punctuation=True, chay restore_punctuation()
     4. Return {start, end, text}
     """
-    # Strip VTT markup from cues before alignment
-    _strip_markup = lambda t: re.sub(r"<[^>]+>", "", t).strip()
-
     results = []
-    for g in groups:
+    if not groups or not raw_vtt_cues:
+        return results
+
+    # Strip VTT markup once from all cues
+    _strip = lambda t: re.sub(r"<[^>]+>", "", t).strip()
+
+    # Expand group edge to first/last VTT cue for complete coverage
+    groups_adj = list(groups)
+    if groups_adj:
+        groups_adj[0]["start"] = min(groups_adj[0]["start"], raw_vtt_cues[0]["start"])
+        groups_adj[-1]["end"] = max(groups_adj[-1]["end"], raw_vtt_cues[-1]["end"])
+
+    for g in groups_adj:
         texts = []
         for cue in raw_vtt_cues:
             ratio = _overlap_ratio(
@@ -77,7 +86,7 @@ def align_text_to_groups(
                 g["start"], g["end"],
             )
             if ratio > 0.1:
-                texts.append(_strip_markup(cue["text"]))
+                texts.append(_strip(cue["text"]))
 
         joined = " ".join(texts)
         joined = re.sub(r"\s+", " ", joined).strip()

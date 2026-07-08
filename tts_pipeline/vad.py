@@ -56,10 +56,6 @@ def get_speech_intervals(
         return_seconds=True,
     )
 
-    # Convert from Silero's dict format (start/end in seconds at 16k) to
-    # our format (start/end in seconds at the original sample_rate timebase).
-    # Silero returns seconds already, so no scaling needed for time values.
-    # But the returned time values are actual seconds, independent of sample rate.
     intervals = []
     for segment in raw:
         intervals.append({

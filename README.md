@@ -211,12 +211,11 @@ python -m pytest tests/ -v
 Với video `T_zgDuLSIYU` (Tu Tiên Lạ Lắm tập 1, ~45 phút, VTT không dấu câu, có nhạc nền):
 
 - Raw VTT cues: ~2700
-- Silero-VAD: **748 speech intervals** → **204 groups** (5-20s)
-- VAD threshold: 0.3 (audiobook cần threshold thấp hơn 0.5)
-- **180 train + 21 test segments**
-- **0 under 5s, 0 over 20s, 0 missing punctuation**
-- Mean duration: 16.9s
-- Timing từ VAD, text từ VTT cues overlap → **audio-text khớp 100%**
+- Silero-VAD: **~780 speech intervals** → **271 segments** (243 train + 28 test)
+- VAD threshold: **0.4** (0.5 quá cao → mất speech; 0.25 → noisy; 0.4 optimal cho audiobook có nhạc nền)
+- **0 under 5s, 0 over 15s, 0 missing punctuation**
+- Timing từ VAD, text từ VTT cues overlap > 0.1 → **audio-text khớp 100%**
+- Key config: `vad_threshold=0.4`, `vad_min_speech_dur=0.15`, `max_segment_dur=15`, `max_text_len=3000`
 
 ## Giấy phép
 
