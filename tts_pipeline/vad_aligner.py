@@ -108,11 +108,15 @@ def align_text_to_groups(
 ) -> list[dict]:
     """Gan text cho moi VAD group tu raw VTT cues overlap.
 
+    Moi VTT cue chi duoc gan vao **1 group duy nhat** — group co
+    overlap ratio lon nhat. Tranh text lap khi VAD group cat ngang cue.
+
     Voi moi group:
-    1. Tim raw VTT cues co overlap > 0.1 voi group
-    2. Dedup word-level overlapping cues, join, clean whitespace
-    3. Neu punctuation=True, chay restore_punctuation()
-    4. Return {start, end, text}
+    1. Gop text tu cac VTT cues duoc gan vao group nay
+    2. Dedup word-level overlapping cues
+    3. Join, clean whitespace
+    4. Neu punctuation=True, chay restore_punctuation()
+    5. Return {start, end, text}
     """
     results = []
     if not groups or not raw_vtt_cues:
@@ -121,35 +125,78 @@ def align_text_to_groups(
     # Strip VTT markup once from all cues
     _strip = lambda t: re.sub(r"<[^>]+>", "", t).strip()
 
-    # Expand group edge to first/last VTT cue for complete coverage
+    # Expand group 0 start and last group end for complete coverage
     groups_adj = list(groups)
     if groups_adj:
-        groups_adj[0]["start"] = min(groups_adj[0]["start"], raw_vtt_cues[0]["start"])
-        groups_adj[-1]["end"] = max(groups_adj[-1]["end"], raw_vtt_cues[-1]["end"])
+        groups_adj[0]["start"] = min(
+            groups_adj[0]["start"], raw_vtt_cues[0]["start"]
+        )
+        groups_adj[-1]["end"] = max(
+            groups_adj[-1]["end"], raw_vtt_cues[-1]["end"]
+        )
 
-    for g in groups_adj:
-        texts = []
-        for cue in raw_vtt_cues:
-            ratio = _overlap_ratio(
-                cue["start"], cue["end"],
-                g["start"], g["end"],
-            )
-            if ratio > 0.1:
-                texts.append(_strip(cue["text"]))
+    # Pass 1: assign each whole VTT cue (keeping original obj) to the
+    # group it MOST overlaps
+    group_cues: dict[int, list[dict]] = {i: [] for i in range(len(groups_adj))}
+    for cue in raw_vtt_cues:
+        text = _strip(cue["text"])
+        if not text:
+            continue
+        best_idx = None
+        best_ratio = 0.0
+        for i, g in enumerate(groups_adj):
+            r = _overlap_ratio(cue["start"], cue["end"], g["start"], g["end"])
+            if r > best_ratio:
+                best_ratio = r
+                best_idx = i
+        if best_idx is not None:
+            group_cues[best_idx].append(cue)
 
-        # Dedup word-level overlapping cues
+    # Pass 2: build preliminary segments WITHOUT punctuation for overlap
+    # detection (raw word-level text only)
+    raw_texts = []
+    for g_idx, g in enumerate(groups_adj):
+        texts = [_strip(c["text"]) for c in group_cues[g_idx]]
         texts = _dedup_consecutive_text(texts)
-
         joined = " ".join(texts)
         joined = re.sub(r"\s+", " ", joined).strip()
-
-        if punctuation and joined:
-            joined = restore_punctuation(joined)
-
-        results.append({
+        raw_texts.append({
             "start": g["start"],
             "end": g["end"],
             "text": joined,
+        })
+
+    # Trim text overlap between adjacent segments.
+    # When head of current repeats tail of previous, remove the
+    # overlapping words from current's text.
+    for i in range(1, len(raw_texts)):
+        prev_text = raw_texts[i - 1]["text"]
+        curr_text = raw_texts[i]["text"]
+        if not prev_text or not curr_text:
+            continue
+        p_words = prev_text.split()
+        c_words = curr_text.split()
+        max_overlap = min(5, len(c_words))
+        overlap_count = 0
+        for n in range(max_overlap, 0, -1):
+            head = " ".join(c_words[:n]).lower()
+            tail = " ".join(p_words[-n:]).lower()
+            if head in tail or tail in head:
+                overlap_count = n
+                break
+        if overlap_count > 0:
+            raw_texts[i]["text"] = " ".join(c_words[overlap_count:])
+
+    # Pass 3: punctuate after overlap trimming
+    results = []
+    for seg in raw_texts:
+        text = seg["text"]
+        if punctuation and text:
+            text = restore_punctuation(text)
+        results.append({
+            "start": seg["start"],
+            "end": seg["end"],
+            "text": text,
         })
 
     return results
