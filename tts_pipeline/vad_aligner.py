@@ -136,7 +136,20 @@ def align_text_to_groups(
         if best_idx is not None:
             group_cues[best_idx].append(cue)
 
-    # Pass 2: build preliminary segments (no punctuation yet)
+    # Pass 2: expand group start backward to cover the earliest VTT cue
+    # assigned to it. This fixes audio cutoff when VAD misses speech onset.
+    # Only expand START, never end — expanding end causes cascade.
+    for g_idx in range(1, len(groups_adj)):
+        cues = group_cues[g_idx]
+        if not cues:
+            continue
+        earliest_start = min(c["start"] for c in cues)
+        if earliest_start < groups_adj[g_idx]["start"]:
+            prev_end = groups[g_idx - 1]["end"]
+            new_start = max(earliest_start, prev_end + 0.05)
+            groups_adj[g_idx]["start"] = new_start
+
+    # Pass 3: build preliminary segments (no punctuation yet)
     raw_texts = []
     for g_idx, g in enumerate(groups_adj):
         texts = [_strip(c["text"]) for c in group_cues[g_idx]]
